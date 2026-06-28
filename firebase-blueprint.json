@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "Item": {
+      "title": "Lost or Found Item",
+      "description": "Represents a lost or found belonging posted on the portal.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["lost", "found"],
+          "description": "Whether the item was lost or found."
+        },
+        "title": {
+          "type": "string",
+          "description": "Short name/title of the item."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the item."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the item (e.g., Electronics, Documents, Keys)."
+        },
+        "location": {
+          "type": "string",
+          "description": "General location where the item was lost or found on campus."
+        },
+        "coordinates": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          },
+          "description": "Optional exact coordinates."
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the item was lost or found."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL to an image of the item."
+        },
+        "reporterId": {
+          "type": "string",
+          "description": "UID of the user who reported the item."
+        },
+        "reporterName": {
+          "type": "string",
+          "description": "Name of the user who reported the item."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "resolved", "archived"],
+          "description": "Current status of the report."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the post was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the post was last updated."
+        }
+      },
+      "required": ["type", "title", "description", "category", "location", "date", "reporterId", "status", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Extended user information stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "photoURL": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "admin"]
+        }
+      },
+      "required": ["displayName", "email", "role"]
+    }
+  },
+  "firestore": {
+    "/items/{itemId}": {
+      "schema": "Item",
+      "description": "Collection of all lost and found items."
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Collection of user profiles."
+    }
+  }
+}

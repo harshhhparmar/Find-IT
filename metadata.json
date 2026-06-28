@@ -1,0 +1,8 @@
+{
+  "name": "Campus Lost \u0026 Found",
+  "description": "A real-time portal for college students and staff to report lost items and post found belongings, facilitating community driven reconnection.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": []
+}

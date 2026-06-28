@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- Helpers ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // --- Entity Validations ---
+
+    function isValidItem(data) {
+      return data.keys().hasAll(['type', 'title', 'description', 'category', 'location', 'date', 'reporterId', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().size() <= 13 // Allow for optional imageUrl, reporterName, coordinates
+        && data.type in ['lost', 'found']
+        && data.status in ['active', 'resolved', 'archived']
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.description is string && data.description.size() <= 2000
+        && data.category is string && data.category.size() <= 50
+        && data.location is string && data.location.size() <= 200;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['displayName', 'email', 'role'])
+        && data.keys().size() <= 5 
+        && data.role == 'user' // Users cannot set themselves to admin
+        && data.email == request.auth.token.email
+        && data.displayName is string && data.displayName.size() <= 100;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['userId', 'message', 'createdAt', 'read', 'relatedItemId'])
+        && data.keys().size() <= 6
+        && data.userId is string && data.userId.size() <= 128
+        && data.message is string && data.message.size() <= 1000
+        && data.read is bool
+        && data.createdAt == request.time;
+    }
+
+    // --- Collection Rules ---
+
+    match /items/{itemId} {
+      allow read: if true;
+      
+      allow create: if isSignedIn() && isValidId(itemId) && isValidItem(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && incoming().reporterId == request.auth.uid;
+      
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (
+          existing().reporterId == request.auth.uid && 
+          isValidItem(incoming()) && 
+          incoming().reporterId == existing().reporterId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().updatedAt == request.time &&
+          (
+            // Action: Resolve/Archive (owner)
+            (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])) ||
+            // Action: Edit Details
+            (incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'location', 'coordinates', 'date', 'imageUrl', 'updatedAt']))
+          )
+        ) ||
+        // Action: External Match (any verified user can resolve an item if it's currently active)
+        (
+          isValidItem(incoming()) &&
+          existing().reporterId != request.auth.uid &&
+          existing().status == 'active' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) &&
+          incoming().status == 'resolved' &&
+          incoming().updatedAt == request.time
+        )
+      );
+      
+      allow delete: if isSignedIn() && (
+        isAdmin() || 
+        existing().reporterId == request.auth.uid
+      );
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && userId == request.auth.uid && isValidUserProfile(incoming());
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']) && incoming().displayName is string)
+      );
+    }
+
+    match /admins/{adminId} {
+      allow read: if isSignedIn() && adminId == request.auth.uid;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(notificationId) && isValidNotification(incoming());
+      allow update: if isSignedIn() && existing().userId == request.auth.uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+  }
+}
